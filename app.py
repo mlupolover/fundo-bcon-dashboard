@@ -495,16 +495,34 @@ with st.sidebar:
         st.session_state["authenticated"] = False
         st.rerun()
 
-    # ── Debug panel (only shows when there are errors) ────────────────────────
-    if _DEBUG_ERRORS:
-        st.divider()
-        with st.expander("🔧 Debug info", expanded=True):
-            for err in _DEBUG_ERRORS:
-                st.code(err)
-
 # ── Page header ───────────────────────────────────────────────────────────────
 st.title("📈 BCon Dashboard — Fundo #2")
 st.caption(f"Meta account: {BCON_ACCOUNT_ID} · Conv event: `{BCON_CONV_EVENT}`")
+
+# ── Live diagnostic (runs every page load, not cached) ───────────────────────
+_diag_errors = []
+try:
+    from facebook_business.api import FacebookAdsApi as _FBApi
+    from facebook_business.adobjects.adaccount import AdAccount as _AdAcc
+    _FBApi.init(access_token=META_TOKEN)
+    _AdAcc(BCON_ACCOUNT_ID).get_insights(params={
+        "time_range": {"since": str(d_since), "until": str(d_until)},
+        "level": "account", "fields": ["spend"],
+    })
+except Exception as _e:
+    _diag_errors.append(f"Meta API: {_e}")
+
+try:
+    _bqc = _get_bq_client()
+    list(_bqc.query("SELECT 1").result())
+except Exception as _e:
+    _diag_errors.append(f"BigQuery: {_e}")
+
+if _diag_errors:
+    with st.expander("⚠️ Connection errors (debug)", expanded=True):
+        for _err in _diag_errors:
+            st.code(_err)
+    st.stop()
 
 # ── Fetch all data ────────────────────────────────────────────────────────────
 with st.spinner("Pulling Meta data..."):
