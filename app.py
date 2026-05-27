@@ -505,23 +505,28 @@ try:
     from facebook_business.api import FacebookAdsApi as _FBApi
     from facebook_business.adobjects.adaccount import AdAccount as _AdAcc
     _FBApi.init(access_token=META_TOKEN)
-    _AdAcc(BCON_ACCOUNT_ID).get_insights(params={
+    # Must iterate cursor to trigger actual HTTP request
+    list(_AdAcc(BCON_ACCOUNT_ID).get_insights(params={
         "time_range": {"since": str(d_since), "until": str(d_until)},
         "level": "account", "fields": ["spend"],
-    })
+    }))
+    _diag_errors.append("✅ Meta API: OK")
 except Exception as _e:
-    _diag_errors.append(f"Meta API: {_e}")
+    _diag_errors.append(f"❌ Meta API: {type(_e).__name__}: {_e}")
 
 try:
     _bqc = _get_bq_client()
     list(_bqc.query("SELECT 1").result())
+    _diag_errors.append("✅ BigQuery: OK")
 except Exception as _e:
-    _diag_errors.append(f"BigQuery: {_e}")
+    _diag_errors.append(f"❌ BigQuery: {type(_e).__name__}: {_e}")
 
-if _diag_errors:
-    with st.expander("⚠️ Connection errors (debug)", expanded=True):
-        for _err in _diag_errors:
-            st.code(_err)
+# Always show diagnostic so we know what's happening
+with st.expander("🔧 Connection status", expanded=any("❌" in e for e in _diag_errors)):
+    st.code("\n".join(_diag_errors))
+    st.caption(f"Token prefix: {META_TOKEN[:20]}..." if META_TOKEN else "Token: MISSING")
+
+if any("❌" in e for e in _diag_errors):
     st.stop()
 
 # ── Fetch all data ────────────────────────────────────────────────────────────
