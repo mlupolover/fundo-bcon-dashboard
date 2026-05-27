@@ -53,9 +53,6 @@ if not st.session_state["authenticated"]:
     _show_login()
     st.stop()
 
-# ── Debug error collector (shown only to logged-in users in sidebar) ──────────
-_DEBUG_ERRORS: list = []
-
 # ── Load credentials from st.secrets (Streamlit Cloud) or local .env ─────────
 from facebook_business.api import FacebookAdsApi          # noqa: E402
 from facebook_business.adobjects.adaccount import AdAccount  # noqa: E402
@@ -66,8 +63,8 @@ def _get_meta_token() -> str:
     """Read Meta token from st.secrets (cloud) or local .env (dev)."""
     try:
         return st.secrets["meta"]["access_token"]
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"Meta token load failed: {e}")
+    except Exception:
+        pass
         _env_path = Path(__file__).parent.parent.parent / "99-meta/secrets/.env.fundo-marketing"
         if _env_path.exists():
             for _line in _env_path.read_text().splitlines():
@@ -82,11 +79,11 @@ def _get_bq_client() -> bigquery.Client:
         sa_info = dict(st.secrets["gcp_service_account"])
         creds = service_account.Credentials.from_service_account_info(
             sa_info,
-            scopes=["https://www.googleapis.com/auth/bigquery.readonly"],
+            scopes=["https://www.googleapis.com/auth/bigquery"],
         )
         return bigquery.Client(project=BQ_PROJECT, credentials=creds)
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"BQ client fallback to ADC: {e}")
+    except Exception:
+        pass
         return bigquery.Client(project=BQ_PROJECT)  # falls back to ADC locally
 
 
@@ -221,8 +218,8 @@ def get_bcon_summary(d_since, d_until) -> pd.DataFrame:
     }
     try:
         results = list(account.get_insights(params=params))
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"Meta summary: {e}")
+    except Exception:
+        pass
         st.error("Unable to load summary data. Please try again later.")
         return pd.DataFrame()
 
@@ -269,8 +266,8 @@ def get_bcon_daily(d_since, d_until) -> pd.DataFrame:
                 "Clicks":      _to_int(d.get("clicks")),
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"Meta daily: {e}")
+    except Exception:
+        pass
         st.error("Unable to load daily trend data. Please try again later.")
     return pd.DataFrame(rows)
 
@@ -307,8 +304,8 @@ def get_bcon_campaigns(d_since, d_until) -> pd.DataFrame:
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
                 "CPA":         _extract_cpa(cpa_list, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"Meta campaigns: {e}")
+    except Exception:
+        pass
         st.error("Unable to load campaign data. Please try again later.")
     return pd.DataFrame(rows)
 
@@ -420,8 +417,8 @@ def get_bcon_campaign_funded(d_since, d_until) -> dict:
         """
         df = client.query(query).to_dataframe()
         return {str(r["campaign_id"]): r for _, r in df.iterrows()}
-    except Exception as e:
-        _DEBUG_ERRORS.append(f"BQ funded attribution: {e}")
+    except Exception:
+        pass
         st.warning("Funded attribution unavailable — data may be incomplete.")
         return {}
 
@@ -499,35 +496,6 @@ with st.sidebar:
 st.title("📈 BCon Dashboard — Fundo #2")
 st.caption(f"Meta account: {BCON_ACCOUNT_ID} · Conv event: `{BCON_CONV_EVENT}`")
 
-# ── Live diagnostic (runs every page load, not cached) ───────────────────────
-_diag_errors = []
-try:
-    from facebook_business.api import FacebookAdsApi as _FBApi
-    from facebook_business.adobjects.adaccount import AdAccount as _AdAcc
-    _FBApi.init(access_token=META_TOKEN)
-    # Must iterate cursor to trigger actual HTTP request
-    list(_AdAcc(BCON_ACCOUNT_ID).get_insights(params={
-        "time_range": {"since": str(d_since), "until": str(d_until)},
-        "level": "account", "fields": ["spend"],
-    }))
-    _diag_errors.append("✅ Meta API: OK")
-except Exception as _e:
-    _diag_errors.append(f"❌ Meta API: {type(_e).__name__}: {_e}")
-
-try:
-    _bqc = _get_bq_client()
-    list(_bqc.query("SELECT 1").result())
-    _diag_errors.append("✅ BigQuery: OK")
-except Exception as _e:
-    _diag_errors.append(f"❌ BigQuery: {type(_e).__name__}: {_e}")
-
-# Always show diagnostic so we know what's happening
-with st.expander("🔧 Connection status", expanded=any("❌" in e for e in _diag_errors)):
-    st.code("\n".join(_diag_errors))
-    st.caption(f"Token prefix: {META_TOKEN[:20]}..." if META_TOKEN else "Token: MISSING")
-
-if any("❌" in e for e in _diag_errors):
-    st.stop()
 
 # ── Fetch all data ────────────────────────────────────────────────────────────
 with st.spinner("Pulling Meta data..."):
