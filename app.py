@@ -53,20 +53,40 @@ if not st.session_state["authenticated"]:
     _show_login()
     st.stop()
 
-# ── Load credentials from vault .env ─────────────────────────────────────────
-_env_path = Path(__file__).parent.parent.parent / "99-meta/secrets/.env.fundo-marketing"
-for _line in _env_path.read_text().splitlines():
-    if "=" in _line and not _line.startswith("#") and _line.strip():
-        _k, _v = _line.split("=", 1)
-        if _v.strip():
-            os.environ[_k.strip()] = _v.strip()
-
+# ── Load credentials from st.secrets (Streamlit Cloud) or local .env ─────────
 from facebook_business.api import FacebookAdsApi          # noqa: E402
 from facebook_business.adobjects.adaccount import AdAccount  # noqa: E402
 from google.cloud import bigquery                          # noqa: E402
+from google.oauth2 import service_account                  # noqa: E402
+
+def _get_meta_token() -> str:
+    """Read Meta token from st.secrets (cloud) or local .env (dev)."""
+    try:
+        return st.secrets["meta"]["access_token"]
+    except Exception:
+        _env_path = Path(__file__).parent.parent.parent / "99-meta/secrets/.env.fundo-marketing"
+        if _env_path.exists():
+            for _line in _env_path.read_text().splitlines():
+                if _line.startswith("META_ACCESS_TOKEN="):
+                    return _line.split("=", 1)[1].strip()
+        raise RuntimeError("Meta access token not found in secrets or local .env")
+
+
+def _get_bq_client() -> bigquery.Client:
+    """Build a BigQuery client using service account secrets (cloud) or ADC (dev)."""
+    try:
+        sa_info = dict(st.secrets["gcp_service_account"])
+        creds = service_account.Credentials.from_service_account_info(
+            sa_info,
+            scopes=["https://www.googleapis.com/auth/bigquery.readonly"],
+        )
+        return bigquery.Client(project=BQ_PROJECT, credentials=creds)
+    except Exception:
+        return bigquery.Client(project=BQ_PROJECT)  # falls back to ADC locally
+
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-META_TOKEN      = os.environ["META_ACCESS_TOKEN"]
+META_TOKEN      = _get_meta_token()
 BCON_ACCOUNT_ID = "act_1978609185832759"
 BCON_CONV_EVENT = "complete_registration"
 BQ_PROJECT      = "fundodata"
@@ -374,7 +394,7 @@ def get_bcon_campaign_funded(d_since, d_until) -> dict:
     Filtered by date deal was FUNDED (fl.timestamp), not lead creation date.
     """
     try:
-        client = bigquery.Client(project=BQ_PROJECT)
+        client = _get_bq_client()
         query = f"""
             SELECT
                 utm.UTMValue                        AS campaign_id,
@@ -404,7 +424,7 @@ def get_bcon_funnel(d_since, d_until):
     Returns (DataFrame, error_string | None).
     """
     try:
-        client = bigquery.Client(project=BQ_PROJECT)
+        client = _get_bq_client()
         query = f"""
             SELECT
                 lead_provider_name                                  AS channel,
