@@ -1,0 +1,23 @@
+# ── Streamlit secrets (NEVER commit) ─────────────────────────────────────────
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
+
+# ── OS noise ─────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.env
+venv/
+.venv/
+
+# ── Credentials ──────────────────────────────────────────────────────────────
+*_credentials.json
+*_secret*.json
+*_token.json
+*token*.json
+service_account*.json

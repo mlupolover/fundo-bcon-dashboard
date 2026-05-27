@@ -216,8 +216,8 @@ def get_bcon_summary(d_since, d_until) -> pd.DataFrame:
     }
     try:
         results = list(account.get_insights(params=params))
-    except Exception as e:
-        st.error(f"Meta API error (summary): {e}")
+    except Exception:
+        st.error("Unable to load summary data. Please try again later.")
         return pd.DataFrame()
 
     if not results:
@@ -263,8 +263,8 @@ def get_bcon_daily(d_since, d_until) -> pd.DataFrame:
                 "Clicks":      _to_int(d.get("clicks")),
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        st.error(f"Meta API error (daily trend): {e}")
+    except Exception:
+        st.error("Unable to load daily trend data. Please try again later.")
     return pd.DataFrame(rows)
 
 
@@ -300,8 +300,8 @@ def get_bcon_campaigns(d_since, d_until) -> pd.DataFrame:
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
                 "CPA":         _extract_cpa(cpa_list, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        st.error(f"Meta API error (campaigns): {e}")
+    except Exception:
+        st.error("Unable to load campaign data. Please try again later.")
     return pd.DataFrame(rows)
 
 
@@ -339,8 +339,8 @@ def get_bcon_adsets(d_since, d_until) -> pd.DataFrame:
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
                 "CPA":         _extract_cpa(cpa_list, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        st.error(f"Meta API error (ad sets): {e}")
+    except Exception:
+        st.error("Unable to load ad set data. Please try again later.")
     return pd.DataFrame(rows)
 
 
@@ -381,8 +381,8 @@ def get_bcon_ads(d_since, d_until) -> pd.DataFrame:
                 "Conversions": _extract_action(actions, BCON_CONV_EVENT),
                 "CPA":         _extract_cpa(cpa_list, BCON_CONV_EVENT),
             })
-    except Exception as e:
-        st.error(f"Meta API error (ads): {e}")
+    except Exception:
+        st.error("Unable to load ad data. Please try again later.")
     return pd.DataFrame(rows)
 
 
@@ -412,8 +412,8 @@ def get_bcon_campaign_funded(d_since, d_until) -> dict:
         """
         df = client.query(query).to_dataframe()
         return {str(r["campaign_id"]): r for _, r in df.iterrows()}
-    except Exception as e:
-        st.warning(f"BQ campaign funded attribution unavailable: {e}")
+    except Exception:
+        st.warning("Funded attribution unavailable — data may be incomplete.")
         return {}
 
 
@@ -445,8 +445,8 @@ def get_bcon_funnel(d_since, d_until):
         """
         df = client.query(query).to_dataframe()
         return df, None
-    except Exception as e:
-        return pd.DataFrame(), str(e)
+    except Exception:
+        return pd.DataFrame(), "BigQuery query failed. Please try again later."
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -770,7 +770,7 @@ with tab_funnel:
     )
 
     if funnel_err:
-        st.error(f"BigQuery error: {funnel_err}")
+        st.error("Unable to load funnel data. Please try again later.")
     elif funnel_df.empty:
         st.info("No BCon funnel data for this date range.")
     else:
