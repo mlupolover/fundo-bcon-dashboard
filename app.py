@@ -501,7 +501,6 @@ st.caption(f"Meta account: {BCON_ACCOUNT_ID} · Conv event: `{BCON_CONV_EVENT}`"
 with st.spinner("Pulling Meta data..."):
     summary_df  = get_bcon_summary(d_since, d_until)
     campaign_df = get_bcon_campaigns(d_since, d_until)
-    daily_df    = get_bcon_daily(d_since, d_until)
 
 with st.spinner("Pulling BQ data..."):
     camp_funded = get_bcon_campaign_funded(d_since, d_until)
@@ -535,33 +534,20 @@ else:
     conv_cpa    = (total_spend / total_conv) if total_conv else None
     cpfa        = (total_spend / total_funded) if total_funded else None
 
-    k1, k2, k3, k4, k5, k6, k7, k8, k9 = st.columns(9)
+    # Row 1: spend & traffic
+    k1, k2, k3, k4, k5 = st.columns(5)
     k1.metric("Spend",       fc(total_spend))
     k2.metric("Impressions", fn(s["Impressions"]))
     k3.metric("Clicks",      fn(s["Clicks"]))
     k4.metric("CTR",         fp(s["CTR"]))
     k5.metric("LPV",         fn(s["LPV"]))
+
+    # Row 2: conversions & funded
+    k6, k7, k8, k9 = st.columns(4)
     k6.metric("Conversions", fn(total_conv))
     k7.metric("Conv CPA",    fc(conv_cpa))
     k8.metric("Funded",      fn(total_funded))
     k9.metric("CPFA",        fc(cpfa))
-
-st.divider()
-
-# ── Daily trend charts ────────────────────────────────────────────────────────
-st.subheader("Daily Trends")
-
-if daily_df.empty:
-    st.info("No daily trend data for this date range.")
-else:
-    daily_df = daily_df.set_index("Date").sort_index()
-    c_left, c_right = st.columns(2)
-    with c_left:
-        st.markdown("**Daily Spend ($)**")
-        st.line_chart(daily_df[["Spend"]])
-    with c_right:
-        st.markdown("**Daily Conversions**")
-        st.line_chart(daily_df[["Conversions"]])
 
 st.divider()
 
